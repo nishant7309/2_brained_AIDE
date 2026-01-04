@@ -1,206 +1,143 @@
-<h1 align="center">AIDE ML — The Machine Learning Engineering Agent</h1>
+# AIDE Lab 🧪
 
-<p align="center"><em>
-LLM‑driven agent that writes, evaluates & improves machine‑learning code.
-</em></p>
+**A dual-model fork of [AIDE ML](https://github.com/WecoAI/aideml) with end-to-end autonomous plan review.**
 
-<p align="center">
-<a href="https://pypi.org/project/aideml/"><img src="https://img.shields.io/pypi/v/aideml?label=PyPI&logo=pypi" alt="PyPI"></a>
-<a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.10%2B-blue" alt="Python 3.10+"></a>
-<a href="https://arxiv.org/abs/2502.13138"><img src="https://img.shields.io/badge/arXiv-2502.13138-b31b1b?logo=arxiv&logoColor=white" alt="arXiv paper"></a>
-<img src="https://img.shields.io/github/license/WecoAI/aideml?color=brightgreen" alt="MIT License">
-<a href="https://pepy.tech/projects/aideml"><img src="https://static.pepy.tech/badge/aideml" alt="PyPI Downloads"></a>&ensp;
-</p>
+## What's Different?
 
-<p align="center">
-<a href="https://docs.weco.ai/cli/getting-started?utm_source=aidemlrepo" target="_blank"><strong>Use in Production? Try Weco →</strong></a>
-</p>
+| Feature | Original AIDE | AIDE Lab |
+|---------|---------------|----------|
+| **Model Architecture** | Single model for plan+code | **Dual-model**: separate Planner + Coder |
+| **Planner Model** | Same as coder | Reasoning model (o1-preview, Gemini Pro) |
+| **Coder Model** | Same as planner | Fast model (Claude Sonnet, GPT-4o-mini) |
+| **Plan Review** | None (post-execution only) | **Pre-execution**: none, critic, or human |
+| **End-to-End Autonomous** | ❌ | ✅ (critic mode with GPT-4o) |
+| **Human-in-the-Loop** | ❌ | ✅ (CLI + Web API) |
+| **Tree Search** | ✅ | ✅ (unchanged) |
 
-# What Is AIDE ML?
+### Architecture
 
-**AIDE ML is the open‑source “reference build” of the AIDE algorithm**, a tree‑search agent that autonomously drafts, debugs and benchmarks code until a user‑defined metric is maximised (or minimised). It ships as a *research‑friendly* Python package with batteries‑included utilities (CLI, visualisation, config presets) so that academics and engineer‑researchers can **replicate the paper, test new ideas, or prototyping ML pipelines**.
+```
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│  Planner        │     │  Plan Review     │     │  Coder          │
+│  (o1-preview)   │ ──▶ │  (none/critic/   │ ──▶ │  (Claude)       │
+│  Creates plan   │     │   human)         │     │  Writes code    │
+└─────────────────┘     └──────────────────┘     └─────────────────┘
+                                                          │
+                              ┌────────────────────────────┘
+                              ▼
+                    ┌─────────────────┐
+                    │  Execute Code   │
+                    │  (Tree Search)  │◀──┐
+                    └─────────────────┘   │
+                              │           │
+                    ┌─────────▼───────────┴──┐
+                    │ Debug (Coder) / Improve │
+                    └────────────────────────┘
+```
 
-![Tree Search Visualization](https://github.com/WecoAI/aideml/assets/8918572/2401529c-b97e-4029-aed2-c3f376f54c3c)
+## Plan Review Modes
 
-| Layer | Description | Where to find it |
-| --- | --- | --- |
-| **AIDE *algorithm*** | LLM‑guided agentic tree search in the space of code. | Described in our [paper](https://arxiv.org/abs/2502.13138). |
-| **AIDE ML *repo* (this repo)** | Lean implementation for experimentation & extension. | `pip install aideml` |
-| **Weco *product*** | The platform generalizes AIDE's capabilities to broader code optimization scenarios, providing experiment tracking and enhanced user control. | [weco.ai](https://weco.ai?utm_source=aidemlrepo) |
+| Mode | Command | Description |
+|------|---------|-------------|
+| `none` | `agent.plan_review.mode=none` | Execute immediately (fastest) |
+| `critic` | `agent.plan_review.mode=critic` | **GPT-4o reviews & improves plans** |
+| `human` | `agent.plan_review.mode=human` | CLI/Web approval before execution |
 
-### Who should use it?
+## Quick Start
 
-- **Agent‑architecture researchers** – swap in new search heuristics, evaluators or LLM back‑ends.
-- **ML Practitioners** – quickly build a high performance ML pipelines given a dataset.
-
-# Key Capabilities
-
-- **Natural‑language task specification**  Point the agent at a dataset and describe *goal* + *metric* in plain English. No YAML grids or bespoke wrappers.  `aide data_dir=…  goal="Predict churn"  eval="AUROC"` 
-- **Iterative *agentic tree search*** Each python script becomes a node in a solution tree; LLM‑generated patches spawn children; metric feedback prunes and guides the search. OpenAI’s **[MLE‑Bench](https://arxiv.org/abs/2410.07095)** (75 Kaggle comps) found the tree‑search of AIDE wins **4 × more medals** than the best linear agent (OpenHands). 
-
-<div align="center">
-<img src="https://github.com/user-attachments/assets/a48aa65e-360d-4d91-b4ad-98b0fe2585d4" width="80%">
-</div>
-
-<details>
-<summary>Utility features provided by this repo</summary>
-
-- **HTML visualiser** – inspect the full solution tree and code attached to each node.
-- **Streamlit UI** – prototype ML solution .
-- **Model‑neutral plumbing** – OpenAI, Anthropic, Gemini, or any local LLM that speaks the OpenAI API.
-
-</details>
-
-## Featured Research built on/with AIDE
-
-| Institution | Paper / Project Name | Links |
-|-------------|----------------------|-------|
-| **OpenAI** | MLE-bench: Evaluating Machine-Learning Agents on Machine-Learning Engineering | [Paper](https://arxiv.org/abs/2410.07095), [GitHub](https://github.com/openai/mle-bench) |
-| **METR** | RE-Bench: Evaluating frontier AI R&D capabilities of language-model agents against human experts | [Paper](https://arxiv.org/abs/2411.15114), [GitHub](https://github.com/METR/RE-Bench) |
-| **Sakana AI** | The AI Scientist-v2: Workshop-Level Automated Scientific Discovery via Agentic Tree Search | [Paper](https://arxiv.org/abs/2504.08066), [GitHub](https://github.com/SakanaAI/AI-Scientist-v2) |
-| **Meta** | The Automated LLM Speedrunning Benchmark: Reproducing NanoGPT Improvements | [Paper](https://arxiv.org/abs/2506.22419), [GitHub](https://github.com/facebookresearch/llm-speedrunner) |
-| **Meta** | AI Research Agents for Machine Learning: Search, Exploration, and Generalization in MLE-bench | [Paper](https://arxiv.org/abs/2507.02554), [GitHub](https://github.com/facebookresearch/aira-dojo) |
-| **SJTU** | ML-Master: Towards AI-for-AI via Integration of Exploration and Reasoning | [Paper](https://arxiv.org/abs/2506.16499), [GitHub](https://github.com/sjtu-sai-agents/ML-Master) |
-
-> *Know another public project that cites or forks AIDE?  
-> [Open a PR](https://github.com/WecoAI/aideml/pulls) and add it to the table!*
-
-
-# How to Use AIDE ML
-
-## Quick Start
+### 1. Install
 
 ```bash
-# 1  Install
-pip install -U aideml
+git clone https://github.com/YOUR_USERNAME/aide-lab.git
+cd aide-lab
+pip install -e .
+```
 
-# 2  Set an LLM key
-export OPENAI_API_KEY=<your‑key>  # https://platform.openai.com/api-keys
+### 2. Set API Keys
 
-# 3  Run an optimisation
+```bash
+export OPENAI_API_KEY="sk-..."
+export ANTHROPIC_API_KEY="sk-ant-..."  # For Claude models
+export GEMINI_API_KEY="..."             # For Gemini models
+```
+
+Or copy `.env.example` to `.env` and fill in your keys.
+
+### 3. Run
+
+```bash
+# End-to-end autonomous (recommended)
 aide data_dir="example_tasks/house_prices" \
-     goal="Predict the sales price for each house" \
-     eval="RMSE between log‑prices"
+     goal="Predict house prices" \
+     agent.plan_review.mode=critic
+
+# With custom models
+aide data_dir="example_tasks/house_prices" \
+     goal="Predict house prices" \
+     agent.planner.model=o1-preview \
+     agent.coder.model=claude-3-5-sonnet-20241022 \
+     agent.plan_review.mode=critic
 ```
 
-After the run finishes you’ll find:
-
-- `logs/<id>/best_solution.py` – best code found
-- `logs/<id>/tree_plot.html` – click to inspect the solution tree
-
----
-
-## Web UI
-
-```bash
-pip install -U aideml   # adds streamlit
-cd aide/webui
-streamlit run app.py
-```
-
-Use the sidebar to paste your API key, upload data, set **Goal** & **Metric**, then press **Run AIDE**.
-
-The UI shows live logs, the solution tree, and the best code.
-
----
-
-## Advanced CLI Options
-
-```bash
-# Choose a different coding model and run 50 steps
-aide agent.code.model="claude-4-sonnet" \
-     agent.steps=50 \
-     data_dir=… goal=… eval=…
-```
-
-Common flags
-
-| Flag | Purpose | Default |
-| --- | --- | --- |
-| `agent.code.model` | LLM used to write code | `gpt-4-turbo` |
-| `agent.steps` | Improvement iterations | `20` |
-| `agent.search.num_drafts` | Drafts per step | `5` |
-
----
-
-## Use AIDE ML Inside Python
+### Python API
 
 ```python
 import aide
-import logging
 
-def main():
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    aide_logger = logging.getLogger("aide")
-    aide_logger.setLevel(logging.INFO)
-    print("Starting experiment...")
-    exp = aide.Experiment(
-        data_dir="example_tasks/bitcoin_price",  # replace this with your own directory
-        goal="Build a time series forecasting model for bitcoin close price.",  # replace with your own goal description
-        eval="RMSLE"  # replace with your own evaluation metric
-    )
-
-    best_solution = exp.run(steps=2)
-
-    print(f"Best solution has validation metric: {best_solution.valid_metric}")
-    print(f"Best solution code: {best_solution.code}")
-    print("Experiment finished.")
-
-if __name__ == '__main__':
-    main()
+# End-to-end autonomous
+exp = aide.Experiment(
+    data_dir="data/",
+    goal="Predict house prices",
+    eval="RMSE",
+    planner_model="o1-preview",
+    coder_model="claude-3-5-sonnet-20241022",
+    plan_review_mode="critic",  # GPT-4o reviews plans
+)
+best = exp.run(steps=20)
+print(f"Best metric: {best.valid_metric}")
 ```
 
----
-
-## Power‑User Extras
-
-### Local LLM (Ollama example)
+### Web API (The Lab)
 
 ```bash
-export OPENAI_BASE_URL="http://localhost:11434/v1"
-aide agent.code.model="qwen2.5" data_dir=… goal=… eval=…
+uvicorn aide.lab_api:app --reload --port 8000
+# Open http://localhost:8000/docs for Swagger UI
 ```
 
-Note: evaluator defaults to gpt‑4o.
+## Configuration
 
-### Fully local (code + evaluator — no external calls)
-```
-export OPENAI_BASE_URL="http://localhost:11434/v1"
-aide agent.code.model="qwen2.5" agent.feedback.model="qwen2.5" data_dir=… goal=… eval=…
-```
-
-Tip: Expect some performance drop with fully local models.
-
-### Docker
-
-```bash
-docker build -t aide .
-docker run -it --rm \
-  -v "${LOGS_DIR:-$(pwd)/logs}:/app/logs" \
-  -v "${WORKSPACE_BASE:-$(pwd)/workspaces}:/app/workspaces" \
-  -v "$(pwd)/aide/example_tasks:/app/data" \
-  -e OPENAI_API_KEY="your-actual-api-key" \
-  aide data_dir=/app/data/house_prices goal="Predict price" eval="RMSE"
-```
-
-### Development install
-
-```bash
-git clone https://github.com/WecoAI/aideml.git
-cd aideml && pip install -e .
+```yaml
+# config.yaml
+agent:
+  planner:
+    model: o1-preview      # Reasoning model for planning
+    temp: 1.0
+    thinking_level: high
+  
+  coder:
+    model: claude-3-5-sonnet-20241022  # Fast model for coding
+    temp: 0.0
+  
+  plan_review:
+    mode: critic           # none | human | critic
+    save_plans: true
+  
+  feedback:
+    model: gpt-4.1-mini    # For code review + plan critic
+    temp: 0.5
 ```
 
-# Citation
+## Why Dual-Model?
 
-If you use AIDE in your work, please cite the following paper:
-```bibtex
-@article{aide2025,
-      title={AIDE: AI-Driven Exploration in the Space of Code}, 
-      author={Zhengyao Jiang and Dominik Schmidt and Dhruv Srikanth and Dixing Xu and Ian Kaplan and Deniss Jacenko and Yuxiang Wu},
-      year={2025},
-      eprint={2502.13138},
-      archivePrefix={arXiv},
-      primaryClass={cs.AI},
-      url={https://arxiv.org/abs/2502.13138}, 
-}
-```
+1. **Cost Optimization**: Use expensive reasoning models only for planning
+2. **Quality**: Detailed plans from o1-preview lead to better code
+3. **Speed**: Fast models (Claude Sonnet) for rapid DEBUG/IMPROVE iterations
+4. **Oversight**: Critic mode catches bad plans before wasting compute
+
+## Credits
+
+This is a fork of [AIDE ML](https://github.com/WecoAI/aideml) by WecoAI. We've extended it with dual-model architecture and plan review capabilities.
+
+## License
+
+Same as original AIDE - see [LICENSE](LICENSE).

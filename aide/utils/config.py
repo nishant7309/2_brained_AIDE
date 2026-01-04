@@ -1,12 +1,12 @@
 """configuration and setup utils"""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Hashable, cast
+from typing import Hashable, Optional, cast
 
 import coolname
 import rich
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, MISSING
 from rich.syntax import Syntax
 import shutup
 from rich.logging import RichHandler
@@ -28,12 +28,64 @@ logger.setLevel(logging.WARNING)
 
 @dataclass
 class StageConfig:
+    """Configuration for a single LLM stage (feedback, report, etc.)."""
     model: str
     temp: float
 
 
 @dataclass
+class PlannerConfig:
+    """
+    Configuration for Worker 1: The Planner (Reasoning Model).
+    
+    Used during the DRAFT phase to create detailed implementation plans.
+    Should use a high-capability reasoning model like o1-preview or Gemini Pro.
+    """
+    model: str = "o1-preview"
+    temp: float = 1.0
+    thinking_level: str = "high"  # low, medium, high - controls reasoning depth
+
+
+@dataclass
+class CoderConfig:
+    """
+    Configuration for Worker 2: The Coder (Fast Model).
+    
+    Used for code generation from approved plans, and for DEBUG/IMPROVE iterations.
+    Should use a fast, cost-effective model like Claude Sonnet or GPT-4o-mini.
+    """
+    model: str = "claude-3-5-sonnet-20241022"
+    temp: float = 0.0  # Deterministic for consistent coding
+
+
+@dataclass
+class PlanReviewConfig:
+    """
+    Configuration for plan review before code execution.
+    
+    Modes:
+        - "none": No review, execute plan immediately (fastest, legacy behavior)
+        - "human": Human reviews plan via CLI or web UI (most control)
+        - "critic": Feedback model (GPT-4o) reviews plan automatically (end-to-end autonomous)
+    """
+    mode: str = "none"  # "none", "human", or "critic"
+    save_plans: bool = True  # Save all plans to log directory
+
+
+@dataclass
+class HumanReviewConfig:
+    """
+    Legacy configuration for human-in-the-loop plan review.
+    Deprecated: Use PlanReviewConfig instead.
+    """
+    enabled: bool = False
+    auto_approve: bool = True
+    timeout: Optional[int] = None
+
+
+@dataclass
 class SearchConfig:
+    """Configuration for tree search hyperparameters."""
     max_debug_depth: int
     debug_prob: float
     num_drafts: int
@@ -41,19 +93,84 @@ class SearchConfig:
 
 @dataclass
 class AgentConfig:
+    """
+    Configuration for the AIDE agent.
+    
+    Supports dual-model architecture with separate Planner and Coder models,
+    as well as backward compatibility with legacy single-model config.
+    """
     steps: int
     k_fold_validation: int
     expose_prediction: bool
     data_preview: bool
 
-    code: StageConfig
-    feedback: StageConfig
+    # Dual-model configuration (The Lab)
+    planner: PlannerConfig = field(default_factory=PlannerConfig)
+    coder: CoderConfig = field(default_factory=CoderConfig)
+    
+    # Legacy single-model config (deprecated, for backward compatibility)
+    code: StageConfig = field(default_factory=lambda: StageConfig(model="o4-mini", temp=0.5))
+    
+    # Feedback/Critic model
+    feedback: StageConfig = field(default_factory=lambda: StageConfig(model="gpt-4.1-mini", temp=0.5))
+    
+    # Plan review configuration
+    plan_review: PlanReviewConfig = field(default_factory=PlanReviewConfig)
+    
+    # Legacy human-in-the-loop review (deprecated, use plan_review)
+    human_review: HumanReviewConfig = field(default_factory=HumanReviewConfig)
 
-    search: SearchConfig
+    search: SearchConfig = field(default_factory=lambda: SearchConfig(
+        max_debug_depth=3, debug_prob=0.5, num_drafts=5
+    ))
+    
+    def get_review_mode(self) -> str:
+        """
+        Get the plan review mode.
+        
+        Returns one of: "none", "human", "critic"
+        
+        Handles backward compatibility with legacy human_review config.
+        """
+        # Check new plan_review config first
+        if hasattr(self, 'plan_review') and self.plan_review is not None:
+            return self.plan_review.mode
+        
+        # Fall back to legacy human_review config
+        if hasattr(self, 'human_review') and self.human_review is not None:
+            if self.human_review.enabled and not self.human_review.auto_approve:
+                return "human"
+        
+        return "none"
+    
+    def get_planner_model(self) -> str:
+        """Get the planner model, with fallback to legacy code.model."""
+        if hasattr(self, 'planner') and self.planner is not None:
+            return self.planner.model
+        return self.code.model
+    
+    def get_planner_temp(self) -> float:
+        """Get the planner temperature, with fallback to legacy code.temp."""
+        if hasattr(self, 'planner') and self.planner is not None:
+            return self.planner.temp
+        return self.code.temp
+    
+    def get_coder_model(self) -> str:
+        """Get the coder model, with fallback to legacy code.model."""
+        if hasattr(self, 'coder') and self.coder is not None:
+            return self.coder.model
+        return self.code.model
+    
+    def get_coder_temp(self) -> float:
+        """Get the coder temperature, with fallback to legacy code.temp."""
+        if hasattr(self, 'coder') and self.coder is not None:
+            return self.coder.temp
+        return self.code.temp
 
 
 @dataclass
 class ExecConfig:
+    """Configuration for code execution."""
     timeout: int
     agent_file_name: str
     format_tb_ipython: bool
@@ -61,6 +178,7 @@ class ExecConfig:
 
 @dataclass
 class Config(Hashable):
+    """Main configuration object for AIDE experiments."""
     data_dir: Path
     desc_file: Path | None
 
@@ -93,12 +211,50 @@ def _get_next_logindex(dir: Path) -> int:
     return max_index + 1
 
 
+def _migrate_legacy_config(cfg) -> None:
+    """
+    Migrate legacy single-model config to dual-model format.
+    
+    If only agent.code is specified (legacy format), copy its settings
+    to both planner and coder for backward compatibility.
+    """
+    agent_cfg = cfg.get("agent", {})
+    
+    # Check if using legacy format (has code but no planner/coder)
+    has_legacy_code = "code" in agent_cfg
+    has_planner = "planner" in agent_cfg
+    has_coder = "coder" in agent_cfg
+    
+    if has_legacy_code and not has_planner and not has_coder:
+        logger.warning(
+            "Using legacy 'agent.code' config. Consider migrating to "
+            "'agent.planner' and 'agent.coder' for dual-model architecture."
+        )
+        # Legacy mode: use code.model for both planner and coder
+        code_cfg = agent_cfg["code"]
+        if "planner" not in agent_cfg:
+            agent_cfg["planner"] = {
+                "model": code_cfg.get("model", "o4-mini"),
+                "temp": code_cfg.get("temp", 0.5),
+                "thinking_level": "medium",
+            }
+        if "coder" not in agent_cfg:
+            agent_cfg["coder"] = {
+                "model": code_cfg.get("model", "o4-mini"),
+                "temp": code_cfg.get("temp", 0.5),
+            }
+
+
 def _load_cfg(
     path: Path = Path(__file__).parent / "config.yaml", use_cli_args=True
 ) -> Config:
     cfg = OmegaConf.load(path)
     if use_cli_args:
         cfg = OmegaConf.merge(cfg, OmegaConf.from_cli())
+    
+    # Migrate legacy config if needed
+    _migrate_legacy_config(cfg)
+    
     return cfg
 
 

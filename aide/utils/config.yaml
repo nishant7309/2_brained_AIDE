@@ -41,15 +41,48 @@ agent:
   # whether to provide the agent with a preview of the data
   data_preview: True
 
-  # LLM settings for coding
+  # ============================================
+  # DUAL-MODEL CONFIGURATION ("The Lab")
+  # ============================================
+  
+  # Worker 1: Planner (Reasoning Model for DRAFT planning phase)
+  # Uses high-capability reasoning model to create detailed implementation plans
+  planner:
+    model: o1-preview           # Reasoning model: o1-preview, gemini-2.0-pro, etc.
+    temp: 1.0                   # Reasoning models often work best with temp=1
+    thinking_level: high        # Force deep reasoning (low, medium, high)
+  
+  # Worker 2: Coder (Fast Model for code execution + iteration)
+  # Uses fast, cost-effective model for implementing plans and quick iterations
+  coder:
+    model: claude-3-5-sonnet-20241022  # Fast model: claude-3-5-sonnet, gemini-2.0-flash, gpt-4o-mini
+    temp: 0.0                          # Deterministic for consistent coding
+  
+  # Backward compatibility: Legacy single-model config (deprecated)
+  # If planner/coder not specified, falls back to this
   code:
     model: o4-mini
     temp: 0.5
 
-  # LLM settings for evaluating program output / tracebacks
+  # LLM settings for evaluating program output / tracebacks (The Critic)
   feedback:
     model: gpt-4.1-mini
     temp: 0.5
+
+  # Plan review settings
+  # Options for who reviews the plan before code execution:
+  #   - "none": No review, execute plan immediately (fastest, legacy behavior)
+  #   - "human": Human reviews plan via CLI or web UI (most control)
+  #   - "critic": Feedback model (GPT-4o) reviews plan automatically (end-to-end autonomous)
+  plan_review:
+    mode: none                  # "none", "human", or "critic"
+    save_plans: true            # Save all plans to log directory
+    
+  # Legacy human_review config (deprecated, use plan_review instead)
+  human_review:
+    enabled: false              # Enable plan review interrupt before code execution
+    auto_approve: true          # If true, skip human review (useful for automated runs)
+    timeout: null               # Optional timeout in seconds for review (null = no timeout)
 
   # hyperparameters for the tree search
   search:
