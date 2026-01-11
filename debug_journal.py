@@ -2,7 +2,7 @@
 import json
 import os
 
-log_dir = r"c:\Users\opnin\OneDrive\Desktop\aide\aideml\logs\2-perfect-blond-oyster"
+log_dir = r"c:\Users\opnin\OneDrive\Desktop\aide\aideml\logs\2-laughing-aboriginal-lynx"
 journal_path = os.path.join(log_dir, "journal.json")
 
 try:
