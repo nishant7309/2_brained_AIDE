@@ -27,7 +27,7 @@ exec:
 generate_report: True
 # LLM settings for final report from journal
 report:
-  model: gpt-4.1
+  model: gemini-2.0-flash
   temp: 1.0
 
 # agent hyperparams
@@ -48,25 +48,25 @@ agent:
   # Worker 1: Planner (Reasoning Model for DRAFT planning phase)
   # Uses high-capability reasoning model to create detailed implementation plans
   planner:
-    model: o1-preview           # Reasoning model: o1-preview, gemini-2.0-pro, etc.
+    model: gemini-2.5-pro  # Reasoning model with advanced capabilities
     temp: 1.0                   # Reasoning models often work best with temp=1
     thinking_level: high        # Force deep reasoning (low, medium, high)
   
   # Worker 2: Coder (Fast Model for code execution + iteration)
   # Uses fast, cost-effective model for implementing plans and quick iterations
   coder:
-    model: claude-3-5-sonnet-20241022  # Fast model: claude-3-5-sonnet, gemini-2.0-flash, gpt-4o-mini
-    temp: 0.0                          # Deterministic for consistent coding
+    model: gemini-2.0-flash  # Fast Gemini model for coding
+    temp: 0.0                # Deterministic for consistent coding
   
   # Backward compatibility: Legacy single-model config (deprecated)
   # If planner/coder not specified, falls back to this
   code:
-    model: o4-mini
+    model: gemini-2.0-flash
     temp: 0.5
 
   # LLM settings for evaluating program output / tracebacks (The Critic)
   feedback:
-    model: gpt-4.1-mini
+    model: gemini-2.0-flash
     temp: 0.5
 
   # Plan review settings

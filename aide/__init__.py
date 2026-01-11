@@ -24,8 +24,8 @@ Usage:
         data_dir="data/",
         goal="Predict house prices",
         eval="RMSE",
-        planner_model="o1-preview",
-        coder_model="claude-3-5-sonnet-20241022",
+        planner_model="gemini-2.5-pro",
+        coder_model="gemini-2.0-flash",
         human_review=False,  # Set True for human-in-the-loop
     )
     
@@ -198,8 +198,8 @@ class InteractiveExperiment:
         data_dir: str,
         goal: str,
         eval: str | None = None,
-        planner_model: str = "o1-preview",
-        coder_model: str = "claude-3-5-sonnet-20241022",
+        planner_model: str = "gemini-2.5-pro",
+        coder_model: str = "gemini-2.0-flash",
         steps: int = 20,
     ):
         """Initialize an interactive experiment.

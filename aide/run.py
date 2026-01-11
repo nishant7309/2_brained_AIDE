@@ -13,7 +13,7 @@ from pathlib import Path
 
 from . import backend
 
-from .agent import Agent, AgentState, StepResult
+from .agent import Agent, AgentState, StepResult, get_review_mode
 from .interpreter import Interpreter
 from .journal import Journal, Node
 from .journal2report import journal2report
@@ -259,7 +259,7 @@ def run():
         subtitle = "Press [b]Ctrl+C[/b] to stop the run"
         
         # Show plan review mode indicator
-        review_mode = cfg.agent.get_review_mode()
+        review_mode = get_review_mode(cfg.agent)
         if review_mode == "human":
             subtitle += " | [cyan]Review: HUMAN[/cyan]"
         elif review_mode == "critic":
@@ -285,6 +285,20 @@ def run():
         while global_step < cfg.agent.steps:
             status.update("[green]Generating code...")
             result = agent.step(exec_callback=exec_callback)
+            
+            # Show output snapshot
+            if result.completed_node:
+                node = result.completed_node
+                status_color = "red" if node.is_buggy else "green"
+                status_icon = "❌" if node.is_buggy else "✅"
+                metric = f"Metric: {node.metric}" if not node.is_buggy else f"Error: {node.exc_type}"
+                
+                live.console.print(f"[{status_color}]{status_icon} Step {global_step} {metric}[/{status_color}]")
+                if node.is_buggy and node.term_out:
+                    # Print last few lines of error log
+                    err_log = "\n".join(node.term_out[-10:])
+                    live.console.print(f"[red]Error Log:\n{err_log}[/red]")
+
             
             if result.state == AgentState.AWAITING_PLAN_REVIEW:
                 # Human review interrupt

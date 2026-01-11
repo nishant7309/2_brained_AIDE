@@ -39,9 +39,9 @@ class PlannerConfig:
     Configuration for Worker 1: The Planner (Reasoning Model).
     
     Used during the DRAFT phase to create detailed implementation plans.
-    Should use a high-capability reasoning model like o1-preview or Gemini Pro.
+    Should use a high-capability reasoning model like gemini-2.5-pro.
     """
-    model: str = "o1-preview"
+    model: str = "gemini-2.5-pro"
     temp: float = 1.0
     thinking_level: str = "high"  # low, medium, high - controls reasoning depth
 
@@ -52,9 +52,9 @@ class CoderConfig:
     Configuration for Worker 2: The Coder (Fast Model).
     
     Used for code generation from approved plans, and for DEBUG/IMPROVE iterations.
-    Should use a fast, cost-effective model like Claude Sonnet or GPT-4o-mini.
+    Should use a fast, cost-effective model like gemini-2.0-flash.
     """
-    model: str = "claude-3-5-sonnet-20241022"
+    model: str = "gemini-2.0-flash"
     temp: float = 0.0  # Deterministic for consistent coding
 
 
@@ -109,10 +109,10 @@ class AgentConfig:
     coder: CoderConfig = field(default_factory=CoderConfig)
     
     # Legacy single-model config (deprecated, for backward compatibility)
-    code: StageConfig = field(default_factory=lambda: StageConfig(model="o4-mini", temp=0.5))
+    code: StageConfig = field(default_factory=lambda: StageConfig(model="gemini-2.0-flash", temp=0.5))
     
     # Feedback/Critic model
-    feedback: StageConfig = field(default_factory=lambda: StageConfig(model="gpt-4.1-mini", temp=0.5))
+    feedback: StageConfig = field(default_factory=lambda: StageConfig(model="gemini-2.0-flash", temp=0.5))
     
     # Plan review configuration
     plan_review: PlanReviewConfig = field(default_factory=PlanReviewConfig)

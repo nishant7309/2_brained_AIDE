@@ -26,6 +26,49 @@ from .utils.response import extract_code, extract_text_up_to_code, wrap_code
 logger = logging.getLogger("aide")
 
 
+# Helper functions for accessing config (OmegaConf doesn't preserve dataclass methods)
+def get_planner_model(acfg) -> str:
+    """Get the planner model, with fallback to legacy code.model."""
+    if hasattr(acfg, 'planner') and acfg.planner is not None:
+        return acfg.planner.model
+    return acfg.code.model
+
+
+def get_planner_temp(acfg) -> float:
+    """Get the planner temperature, with fallback to legacy code.temp."""
+    if hasattr(acfg, 'planner') and acfg.planner is not None:
+        return acfg.planner.temp
+    return acfg.code.temp
+
+
+def get_coder_model(acfg) -> str:
+    """Get the coder model, with fallback to legacy code.model."""
+    if hasattr(acfg, 'coder') and acfg.coder is not None:
+        return acfg.coder.model
+    return acfg.code.model
+
+
+def get_coder_temp(acfg) -> float:
+    """Get the coder temperature, with fallback to legacy code.temp."""
+    if hasattr(acfg, 'coder') and acfg.coder is not None:
+        return acfg.coder.temp
+    return acfg.code.temp
+
+
+def get_review_mode(acfg) -> str:
+    """Get the plan review mode."""
+    # Check new plan_review config first
+    if hasattr(acfg, 'plan_review') and acfg.plan_review is not None:
+        return acfg.plan_review.mode
+    
+    # Fall back to legacy human_review config
+    if hasattr(acfg, 'human_review') and acfg.human_review is not None:
+        if acfg.human_review.enabled and not acfg.human_review.auto_approve:
+            return "human"
+    
+    return "none"
+
+
 ExecCallbackType = Callable[[str, bool], ExecutionResult]
 
 
@@ -193,7 +236,13 @@ class Agent:
         pkg_str = ", ".join([f"`{p}`" for p in pkgs])
 
         env_prompt = {
-            "Installed Packages": f"Your solution can use any relevant machine learning packages such as: {pkg_str}. Feel free to use any other packages too (all packages are already installed!). For neural networks we suggest using PyTorch rather than TensorFlow."
+            "Installed Packages": f"Your solution can use any relevant machine learning packages such as: {pkg_str}. Feel free to use any other packages too (all packages are already installed!). For neural networks we suggest using PyTorch rather than TensorFlow.",
+            "Common Pitfalls & Best Practices": (
+                "1. **LightGBM & XGBoost**: `early_stopping_rounds` is deprecated in `fit()`. For LightGBM, use `callbacks=[lgb.early_stopping(...)]`. For XGBoost, set `early_stopping_rounds` in the **constructor** (`XGBRegressor(..., early_stopping_rounds=100)`).\n"
+                "2. **Scipy**: Use `scipy.special.boxcox1p` instead of `scipy.stats.boxcox1p`.\n"
+                "3. **Pandas**: Handle missing values (NaN) before converting columns to integer types to avoid `IntCastingNaNError`.\n"
+                "4. **Sklearn**: Use `OneHotEncoder(handle_unknown='ignore')` to handle unseen categories, or align columns after `get_dummies`.\n"
+            )
         }
         return env_prompt
 
@@ -304,8 +353,8 @@ class Agent:
             prompt["Data Overview"] = self.data_preview
 
         # Use Planner model (reasoning model)
-        planner_model = self.acfg.get_planner_model()
-        planner_temp = self.acfg.get_planner_temp()
+        planner_model = get_planner_model(self.acfg)
+        planner_temp = get_planner_temp(self.acfg)
         
         logger.info(f"Using Planner model: {planner_model}")
         
@@ -430,8 +479,8 @@ class Agent:
             prompt["Data Overview"] = self.data_preview
 
         # Use Coder model (fast model)
-        coder_model = self.acfg.get_coder_model()
-        coder_temp = self.acfg.get_coder_temp()
+        coder_model = get_coder_model(self.acfg)
+        coder_temp = get_coder_temp(self.acfg)
         
         logger.info(f"Using Coder model: {coder_model}")
         
@@ -481,8 +530,8 @@ class Agent:
             tuple: (plan_text, code) extracted from the response.
         """
         # Default to coder model for combined plan+code generation
-        model = model or self.acfg.get_coder_model()
-        temperature = temperature if temperature is not None else self.acfg.get_coder_temp()
+        model = model or get_coder_model(self.acfg)
+        temperature = temperature if temperature is not None else get_coder_temp(self.acfg)
         
         completion_text = None
         for _ in range(retries):
@@ -525,7 +574,7 @@ class Agent:
         plan = self._generate_plan()
         
         # Step 2: Handle plan review based on mode
-        review_mode = self.acfg.get_review_mode()
+        review_mode = get_review_mode(self.acfg)
         logger.info(f"Plan review mode: {review_mode}")
         
         if review_mode == "human":
